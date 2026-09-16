@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tax Invoice - Vivaan Pharmacy</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #000; background: #ccc; margin: 0; }
+  .toolbar { position: sticky; top: 0; background: #222; padding: 10px 16px; display: flex; gap: 10px; z-index: 10; align-items: center; }
+  .toolbar button, .toolbar a {
+    background: #0b5d3b; color: #fff; border: none; border-radius: 5px; padding: 8px 16px;
+    font-size: 13px; cursor: pointer; text-decoration: none; font-family: inherit;
+  }
+  .toolbar a.secondary, .toolbar button.secondary { background: #555; }
+  .toolbar button.email-btn { background: #1a5aa8; }
+  .page { width: 210mm; min-height: 297mm; margin: 16px auto; background: #fff; padding: 8mm; }
+  .invoice-copy { border: 1.5px solid #000; padding: 6px; margin-bottom: 8px; }
+  .inv-title { text-align: center; font-weight: 700; font-size: 15px; letter-spacing: 4px; margin-bottom: 4px; }
+  .inv-header { display: flex; justify-content: space-between; border-bottom: 1px solid #000; padding-bottom: 4px; margin-bottom: 4px; }
+  .firm-block { max-width: 62%; }
+  .firm-name { font-weight: 700; font-size: 15px; }
+  .firm-line { margin: 1px 0; }
+  .meta-block { text-align: left; font-size: 11px; }
+  .meta-block .qr { float: right; margin-left: 8px; }
+  .meta-block table td { padding: 0 4px 1px 0; vertical-align: top; }
+
+  .party-row { display: flex; justify-content: space-between; border-bottom: 1px solid #000; padding-bottom: 4px; margin-bottom: 4px; }
+  .party-block { max-width: 58%; }
+  .party-block .lbl { font-size: 10px; }
+  .party-block .name { font-weight: 700; }
+  .details-block table td { padding: 0 4px 1px 0; }
+  .details-block .lbl { font-weight: 700; }
+
+  table.items { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
+  table.items th, table.items td { border: 1px solid #000; padding: 2px 3px; font-size: 10.5px; }
+  table.items th { background: #eee; font-weight: 700; text-align: center; }
+  table.items td.num { text-align: right; }
+  table.items td.center { text-align: center; }
+  table.items tbody tr td { height: 14px; }
+
+  .bottom-row { display: flex; border-bottom: 1px solid #000; }
+  .remark-cell { flex: 1; border-right: 1px solid #000; padding: 3px; font-size: 10.5px; }
+  .totalsmall { display: flex; }
+  .totalsmall div { padding: 3px 8px; border-right: 1px solid #000; min-width: 70px; text-align: right; font-weight: 700; }
+  .totalsmall div:last-child { border-right: none; }
+
+  .final-row { display: flex; margin-top: 4px; }
+  .words-discount { flex: 1; border: 1px solid #000; border-right: none; }
+  .words-cell { padding: 4px; border-bottom: 1px solid #000; font-weight: 700; font-size: 11px; }
+  .disc-grid { display: grid; grid-template-columns: 1fr 1fr; font-size: 10.5px; }
+  .disc-grid div { padding: 2px 6px; }
+  .signature-cell { flex: 1; border: 1px solid #000; border-left: none; padding: 4px; display: flex; flex-direction: column; justify-content: space-between; min-height: 70px; }
+  .for-firm { text-align: center; font-weight: 700; margin-bottom: 20px; }
+  .sig-labels { display: flex; justify-content: space-between; font-size: 10px; }
+  .net-box { border: 1px solid #000; border-left: none; min-width: 130px; }
+  .net-box .row { display: flex; justify-content: space-between; padding: 3px 6px; border-bottom: 1px solid #000; }
+  .net-box .row:last-child { border-bottom: none; font-weight: 700; background: #eee; }
+
+  .footer-line { text-align: center; font-size: 9px; margin-top: 4px; color: #333; }
+
+  /* Email modal (not part of the printable bill) */
+  .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(10,20,15,0.5); align-items: flex-start; justify-content: center; padding: 60px 16px; z-index: 50; font-family: Arial, Helvetica, sans-serif; }
+  .modal-backdrop.open { display: flex; }
+  .modal { background: #fff; border-radius: 8px; padding: 20px; width: 100%; max-width: 420px; font-size: 13px; color: #202a26; }
+  .modal h3 { margin: 0 0 4px; font-size: 16px; }
+  .modal p.hint { color: #667169; font-size: 12px; margin: 0 0 14px; }
+  .modal label { display: block; font-size: 12px; font-weight: 600; color: #667169; margin-bottom: 4px; }
+  .modal input { width: 100%; padding: 8px 9px; border: 1px solid #d8ddda; border-radius: 6px; font-size: 13px; margin-bottom: 12px; font-family: inherit; }
+  .modal .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+  .modal .modal-actions button { border: none; border-radius: 6px; padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .modal .btn-send { background: #1a5aa8; color: #fff; }
+  .modal .btn-cancel { background: #eceeec; color: #202a26; }
+  .modal .status-msg { font-size: 12px; margin-top: 4px; min-height: 16px; }
+  .modal .status-msg.ok { color: #0b5d3b; }
+  .modal .status-msg.err { color: #b3261e; }
+
+  @media print {
+    body { background: #fff; }
+    .toolbar, .modal-backdrop { display: none !important; }
+    .page { margin: 0; width: auto; min-height: auto; padding: 4mm; }
+  }
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <button onclick="window.print()">Print Bill</button>
+  <button class="email-btn" onclick="openEmailModal()">Email Bill</button>
+  <a class="secondary" href="sales-invoice.html">&larr; Back to Sales Invoice</a>
+</div>
+
+<div class="page" id="page"></div>
+
+<div class="modal-backdrop" id="emailModalBackdrop">
+  <div class="modal">
+    <h3>Email this bill</h3>
+    <p class="hint" id="emailModalHint">Sends a summary of this invoice to the address below.</p>
+    <label>To</label>
+    <input id="emailTo" type="email" placeholder="party@example.com">
+    <label>CC (optional, comma-separated)</label>
+    <input id="emailCc" type="email" placeholder="you@example.com">
+    <div class="status-msg" id="emailStatus"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeEmailModal()">Cancel</button>
+      <button class="btn-send" id="emailSendBtn" onclick="sendEmail()">Send</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/common.js"></script>
+<script>
+const params = new URLSearchParams(window.location.search);
+const invoiceId = params.get("id");
+let currentInvoice = null;
+
+async function load() {
+  if (!invoiceId) { document.getElementById("page").textContent = "No invoice id given."; return; }
+  const [invoice, company] = await Promise.all([
+    api("/api/sales-invoices/" + invoiceId),
+    api("/api/company"),
+  ]);
+  currentInvoice = invoice;
+  render(invoice, company);
+}
+
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function packDisplay(item) {
+  return item.packSize != null ? item.packSize : "";
+}
+
+function isInterState(invoice) {
+  return Number(invoice.totalIgst || 0) > 0;
+}
+
+function buildCopy(invoice, company, copyLabel) {
+  const interState = isInterState(invoice);
+  const qrId = "qr-" + copyLabel;
+
+  const rows = invoice.items.map((it) => {
+    const gstCols = interState
+      ? `<td class="num">${it.igstPercent}</td><td class="num">${fmtMoney(it.igstAmt)}</td>`
+      : `<td class="num">${it.cgstPercent}</td><td class="num">${fmtMoney(it.cgstAmt)}</td><td class="num">${it.sgstPercent}</td><td class="num">${fmtMoney(it.sgstAmt)}</td>`;
+    return `<tr>
+      <td class="center">${esc(it.scheduleType || "")}</td>
+      <td class="center">${esc(it.hsnCode || "")}</td>
+      <td>${esc(it.productName || "")}</td>
+      <td class="center">${packDisplay(it)}</td>
+      <td class="num">${it.qty}</td>
+      <td class="num">${it.schemeQty || ""}</td>
+      <td class="center">${esc(it.batchNo || "")}</td>
+      <td class="center">${fmtExpiry(it.expiry)}</td>
+      <td class="num">${fmtMoney(it.mrp)}</td>
+      <td class="num">${fmtMoney(it.rate)}</td>
+      <td class="num">${fmtMoney((it.rate * it.qty) - it.taxableAmt)}</td>
+      <td class="num">${fmtMoney(it.taxableAmt)}</td>
+      ${gstCols}
+    </tr>`;
+  }).join("");
+
+  const blankRows = Math.max(0, 6 - invoice.items.length);
+  let filler = "";
+  const colCount = interState ? 13 : 14;
+  for (let i = 0; i < blankRows; i++) {
+    filler += `<tr>${"<td>&nbsp;</td>".repeat(colCount)}</tr>`;
+  }
+
+  const gstHeaderCols = interState
+    ? `<th>%IGST</th><th>Amt</th>`
+    : `<th>%CGST</th><th>Amt</th><th>%SGST</th><th>Amt</th>`;
+
+  const taxTotalsCols = interState
+    ? `<div>${fmtMoney(invoice.totalIgst)}</div>`
+    : `<div>${fmtMoney(invoice.totalCgst)}</div><div>${fmtMoney(invoice.totalSgst)}</div>`;
+
+  return `
+  <div class="invoice-copy">
+    <div class="inv-title">GST TAX INVOICE</div>
+    <div class="inv-header">
+      <div class="firm-block">
+        <div class="firm-name">${esc(company.firmName)}</div>
+        <div class="firm-line">${esc(company.addressLine1)}</div>
+        <div class="firm-line">${esc(company.addressLine2)}</div>
+        <div class="firm-line">Mobile: ${esc(company.mobile1)}${company.mobile2 ? "," + esc(company.mobile2) : ""}</div>
+        <div class="firm-line">D.L.No.: ${esc(company.dlNumbers)}</div>
+        <div class="firm-line">GSTIN: ${esc(company.gstin)}, PAN : ${esc(company.pan)}, State Code: ${esc(company.stateCode)} ${esc(company.state)}</div>
+      </div>
+      <div class="meta-block">
+        <div class="qr" id="${qrId}"></div>
+        <table>
+          <tr><td class="lbl">Invoice No :</td><td>${esc(invoice.invoiceNo)}</td></tr>
+          <tr><td class="lbl">Date :</td><td>${fmtDate(invoice.invoiceDate)}</td></tr>
+          <tr><td class="lbl">Due Date :</td><td>${fmtDate(invoice.dueDate)}</td></tr>
+          <tr><td class="lbl">Salesman:</td><td>${esc(invoice.salesman)}</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="party-row">
+      <div class="party-block">
+        <div class="lbl">To,</div>
+        <div class="name">${esc(invoice.partyName)}</div>
+        <div>${esc(invoice.partyAddress)}</div>
+      </div>
+      <div class="details-block">
+        <div class="lbl" style="font-weight:700;">Details Of Invoice</div>
+        <table>
+          <tr><td class="lbl">D.L.No.:</td><td>${esc(invoice.partyDlNumbers)}</td></tr>
+          <tr><td class="lbl">GSTIN :</td><td>${esc(invoice.partyGstin)}</td><td class="lbl">PAN :</td><td>${esc(invoice.partyPan || "")}</td></tr>
+          <tr><td class="lbl">State :</td><td>${esc(invoice.partyState)}</td><td class="lbl">State Code:</td><td>${esc(invoice.partyStateCode)}</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <table class="items">
+      <thead>
+        <tr>
+          <th>M</th><th>HSN</th><th>Product Name</th><th>Pac</th><th>Qty</th><th>Sch</th>
+          <th>Batch</th><th>Exp</th><th>M.R.P.</th><th>Rate</th><th>Disc</th><th>Taxable</th>
+          ${gstHeaderCols}
+        </tr>
+      </thead>
+      <tbody>${rows}${filler}</tbody>
+    </table>
+
+    <div class="bottom-row">
+      <div class="remark-cell">
+        <strong>Remark :</strong> ${esc(invoice.remark || "")}
+      </div>
+      <div class="totalsmall">
+        <div>${fmtMoney(invoice.totalTaxable)}</div>
+        ${taxTotalsCols}
+      </div>
+    </div>
+
+    <div class="final-row">
+      <div class="words-discount">
+        <div class="words-cell">Rs.${esc(invoice.amountInWords)}</div>
+        <div class="disc-grid">
+          <div>(-) C.Disc: ${fmtMoney(invoice.cashDiscount)}</div>
+          <div>(-) Sch.Disc: ${fmtMoney(invoice.schemeDiscount)}</div>
+          <div>(-) Item Disc: ${fmtMoney(invoice.itemDiscount)}</div>
+          <div>(-) Cr.Note: ${fmtMoney(invoice.creditNoteAdj)}</div>
+          <div>(+) Dr.Note: ${fmtMoney(invoice.debitNoteAdj)}</div>
+          <div>(+) Others: ${fmtMoney(invoice.othersAdj)}</div>
+        </div>
+      </div>
+      <div class="signature-cell">
+        <div class="for-firm">For ${esc(company.firmName)}</div>
+        <div class="sig-labels">
+          <span>Receiver's Signature</span>
+          <span>(Authorised Signatory)</span>
+        </div>
+      </div>
+      <div class="net-box">
+        <div class="row"><span>Gross</span><span>${fmtMoney(invoice.grossAmount)}</span></div>
+        <div class="row"><span>Add</span><span>${fmtMoney(Number(invoice.totalCgst)+Number(invoice.totalSgst)+Number(invoice.totalIgst))}</span></div>
+        <div class="row"><span>Less</span><span>${fmtMoney(invoice.cashDiscount)}</span></div>
+        <div class="row"><span>NET AMT</span><span>${fmtMoney(invoice.netAmount)}</span></div>
+      </div>
+    </div>
+    <div class="footer-line">Vivaan Pharmacy Billing System &mdash; Generated on ${new Date().toLocaleString("en-IN")}</div>
+  </div>`;
+}
+
+function render(invoice, company) {
+  const page = document.getElementById("page");
+  page.innerHTML = buildCopy(invoice, company, "1") + buildCopy(invoice, company, "2");
+  try {
+    ["qr-1", "qr-2"].forEach((id) => {
+      new QRCode(document.getElementById(id), {
+        text: `Invoice:${invoice.invoiceNo}|GSTIN:${company.gstin}|Amt:${invoice.netAmount}`,
+        width: 64, height: 64,
+      });
+    });
+  } catch (e) { /* QR lib optional, ignore if offline */ }
+}
+
+// --- Email Bill ---
+
+function openEmailModal() {
+  if (!currentInvoice) return;
+  const status = document.getElementById("emailStatus");
+  status.textContent = "";
+  status.className = "status-msg";
+  const hint = document.getElementById("emailModalHint");
+  hint.textContent = `Sends a summary of invoice ${currentInvoice.invoiceNo} (Net ₹${fmtMoney(currentInvoice.netAmount)}) to the address below.`;
+
+  const partyEmail = currentInvoice.party && currentInvoice.party.email ? currentInvoice.party.email : "";
+  document.getElementById("emailTo").value = partyEmail;
+  document.getElementById("emailCc").value = "";
+  document.getElementById("emailModalBackdrop").classList.add("open");
+  document.getElementById("emailTo").focus();
+}
+
+function closeEmailModal() {
+  document.getElementById("emailModalBackdrop").classList.remove("open");
+}
+
+async function sendEmail() {
+  const toEmail = document.getElementById("emailTo").value.trim();
+  const ccEmail = document.getElementById("emailCc").value.trim();
+  const status = document.getElementById("emailStatus");
+  const sendBtn = document.getElementById("emailSendBtn");
+
+  if (!toEmail) {
+    status.textContent = "Enter a recipient email address.";
+    status.className = "status-msg err";
+    return;
+  }
+
+  sendBtn.disabled = true;
+  sendBtn.textContent = "Sending...";
+  status.textContent = "";
+  status.className = "status-msg";
+
+  try {
+    await api(`/api/sales-invoices/${currentInvoice.id}/email`, {
+      method: "POST",
+      body: JSON.stringify({ toEmail, ccEmail: ccEmail || null }),
+    });
+    status.textContent = "Sent to " + toEmail + ".";
+    status.className = "status-msg ok";
+    setTimeout(closeEmailModal, 1400);
+  } catch (e) {
+    status.textContent = e.message;
+    status.className = "status-msg err";
+  } finally {
+    sendBtn.disabled = false;
+    sendBtn.textContent = "Send";
+  }
+}
+
+load();
+</script>
+</body>
+</html>

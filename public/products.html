@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Products - Vivaan Pharmacy Billing</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="topbar" id="topbar"></div>
+
+<div class="container">
+  <div class="card">
+    <div class="toolbar">
+      <div>
+        <h1>Product Master</h1>
+        <p class="subtitle">HSN, GST%, pack size/type, manufacturer, scheme &mdash; plus batch-wise stock (batch no., expiry, MRP, rate, qty).</p>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <input class="search" id="searchBox" placeholder="Search by name...">
+        <button onclick="openForm()">+ New Product</button>
+      </div>
+    </div>
+
+    <table id="productTable">
+      <thead>
+        <tr>
+          <th>Product</th>
+          <th>HSN</th>
+          <th>GST%</th>
+          <th>Pack</th>
+          <th>Manufacturer</th>
+          <th>Scheme</th>
+          <th>M</th>
+          <th>MRP</th>
+          <th>Batches</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="productRows"></tbody>
+    </table>
+    <div class="empty-state" id="emptyState" style="display:none;">No products yet. Click "+ New Product" to add your first item.</div>
+  </div>
+</div>
+
+<!-- Product form modal -->
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle" style="margin:0;">New Product</h2>
+      <button onclick="closeForm()">&times;</button>
+    </div>
+    <form id="productForm">
+      <input type="hidden" id="productId">
+      <div class="field">
+        <label>Product Name *</label>
+        <input id="name" required>
+      </div>
+      <div class="grid grid-3">
+        <div class="field">
+          <label>HSN Code</label>
+          <input id="hsnCode">
+        </div>
+        <div class="field">
+          <label>GST % (total)</label>
+          <input id="gstPercent" type="number" step="0.01" value="12">
+        </div>
+        <div class="field">
+          <label>Schedule (M column)</label>
+          <select id="scheduleType">
+            <option value="G">G - General/OTC</option>
+            <option value="S">S - Schedule H/H1</option>
+            <option value="N">N - Non-scheduled</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid grid-3">
+        <div class="field">
+          <label>Pack Size</label>
+          <input id="packSize" type="number" value="10">
+        </div>
+        <div class="field">
+          <label>Packing Type</label>
+          <select id="packingType">
+            <option>STRIP</option><option>TABLET</option><option>CAPSULE</option><option>GEL</option>
+            <option>BOTTLE</option><option>INJECTION</option><option>VIAL</option><option>POWDER</option>
+            <option>CREAM</option><option>OINTMENT</option><option>SYRUP</option><option>DROPS</option>
+            <option>SACHET</option><option>TUBE</option><option>OTHER</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Manufacturer</label>
+          <input id="manufacturer">
+        </div>
+      </div>
+      <div class="grid grid-4">
+        <div class="field">
+          <label>Scheme (e.g. 5+0)</label>
+          <input id="scheme">
+        </div>
+        <div class="field">
+          <label>Default MRP</label>
+          <input id="defaultMrp" type="number" step="0.01" value="0">
+        </div>
+        <div class="field">
+          <label>Default Sale Rate</label>
+          <input id="defaultSaleRate" type="number" step="0.01" value="0">
+        </div>
+        <div class="field">
+          <label>Default Purchase Rate</label>
+          <input id="defaultPurchaseRate" type="number" step="0.01" value="0">
+        </div>
+      </div>
+      <div class="field">
+        <label>Category</label>
+        <input id="category" placeholder="e.g. Cardiac, Antibiotic, Cosmetic">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" onclick="closeForm()">Cancel</button>
+        <button type="submit">Save Product</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Batch management modal -->
+<div class="modal-backdrop" id="batchBackdrop">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="batchModalTitle" style="margin:0;">Stock Batches</h2>
+      <button onclick="closeBatchModal()">&times;</button>
+    </div>
+    <table style="margin-bottom:14px;">
+      <thead><tr><th>Batch No.</th><th>Expiry</th><th>MRP</th><th>Sale Rate</th><th>Qty</th><th></th></tr></thead>
+      <tbody id="batchRows"></tbody>
+    </table>
+    <form id="batchForm">
+      <input type="hidden" id="batchProductId">
+      <div class="grid grid-4">
+        <div class="field">
+          <label>Batch No. *</label>
+          <input id="batchNo" required>
+        </div>
+        <div class="field">
+          <label>Expiry (month/year) *</label>
+          <input id="batchExpiry" type="month" required>
+        </div>
+        <div class="field">
+          <label>MRP</label>
+          <input id="batchMrp" type="number" step="0.01" value="0">
+        </div>
+        <div class="field">
+          <label>Sale Rate</label>
+          <input id="batchSaleRate" type="number" step="0.01" value="0">
+        </div>
+      </div>
+      <div class="grid grid-2">
+        <div class="field">
+          <label>Qty Available</label>
+          <input id="batchQty" type="number" value="0">
+        </div>
+        <div class="field" style="display:flex; align-items:flex-end;">
+          <button type="submit" style="width:100%;">+ Add Batch</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="js/common.js"></script>
+<script>
+renderNav("products.html");
+
+let products = [];
+
+async function load(q) {
+  products = await api("/api/products" + (q ? ("?q=" + encodeURIComponent(q)) : ""));
+  await Promise.all(products.map(async (p) => { p._batches = await api(`/api/products/${p.id}/batches`); }));
+  renderRows();
+}
+
+function escapeHtml(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function renderRows() {
+  const tbody = document.getElementById("productRows");
+  tbody.innerHTML = "";
+  document.getElementById("emptyState").style.display = products.length ? "none" : "block";
+  products.forEach((p) => {
+    const totalQty = (p._batches || []).reduce((s, b) => s + (b.qtyAvailable || 0), 0);
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><strong>${escapeHtml(p.name)}</strong></td>
+      <td>${escapeHtml(p.hsnCode)}</td>
+      <td>${p.gstPercent}%</td>
+      <td>${p.packSize} ${escapeHtml(p.packingType)}</td>
+      <td>${escapeHtml(p.manufacturer)}</td>
+      <td>${escapeHtml(p.scheme)}</td>
+      <td>${escapeHtml(p.scheduleType)}</td>
+      <td class="text-right">${fmtMoney(p.defaultMrp)}</td>
+      <td class="nowrap">${p._batches.length} batch(es) &middot; ${totalQty} in stock</td>
+      <td class="actions-cell">
+        <button class="btn-sm btn-secondary" onclick="manageBatches(${p.id})">Batches</button>
+        <button class="btn-sm btn-secondary" onclick="editProduct(${p.id})">Edit</button>
+        <button class="btn-sm btn-danger" onclick="removeProduct(${p.id})">Delete</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function openForm() {
+  document.getElementById("modalTitle").textContent = "New Product";
+  document.getElementById("productForm").reset();
+  document.getElementById("productId").value = "";
+  document.getElementById("modalBackdrop").classList.add("open");
+}
+function closeForm() { document.getElementById("modalBackdrop").classList.remove("open"); }
+
+function editProduct(id) {
+  const p = products.find((x) => x.id === id);
+  if (!p) return;
+  document.getElementById("modalTitle").textContent = "Edit Product";
+  document.getElementById("productId").value = p.id;
+  document.getElementById("name").value = p.name || "";
+  document.getElementById("hsnCode").value = p.hsnCode || "";
+  document.getElementById("gstPercent").value = p.gstPercent || 0;
+  document.getElementById("scheduleType").value = p.scheduleType || "G";
+  document.getElementById("packSize").value = p.packSize || 1;
+  document.getElementById("packingType").value = p.packingType || "STRIP";
+  document.getElementById("manufacturer").value = p.manufacturer || "";
+  document.getElementById("scheme").value = p.scheme || "";
+  document.getElementById("defaultMrp").value = p.defaultMrp || 0;
+  document.getElementById("defaultSaleRate").value = p.defaultSaleRate || 0;
+  document.getElementById("defaultPurchaseRate").value = p.defaultPurchaseRate || 0;
+  document.getElementById("category").value = p.category || "";
+  document.getElementById("modalBackdrop").classList.add("open");
+}
+
+async function removeProduct(id) {
+  if (!confirm("Deactivate this product?")) return;
+  try {
+    await api("/api/products/" + id, { method: "DELETE" });
+    toast("Product deactivated");
+    load();
+  } catch (e) { toast(e.message, true); }
+}
+
+document.getElementById("productForm").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const id = document.getElementById("productId").value;
+  const payload = {
+    name: document.getElementById("name").value,
+    hsnCode: document.getElementById("hsnCode").value,
+    gstPercent: parseFloat(document.getElementById("gstPercent").value || "0"),
+    scheduleType: document.getElementById("scheduleType").value,
+    packSize: parseInt(document.getElementById("packSize").value || "1", 10),
+    packingType: document.getElementById("packingType").value,
+    manufacturer: document.getElementById("manufacturer").value,
+    scheme: document.getElementById("scheme").value,
+    defaultMrp: parseFloat(document.getElementById("defaultMrp").value || "0"),
+    defaultSaleRate: parseFloat(document.getElementById("defaultSaleRate").value || "0"),
+    defaultPurchaseRate: parseFloat(document.getElementById("defaultPurchaseRate").value || "0"),
+    category: document.getElementById("category").value,
+    active: true,
+  };
+  try {
+    if (id) {
+      await api("/api/products/" + id, { method: "PUT", body: JSON.stringify(payload) });
+    } else {
+      await api("/api/products", { method: "POST", body: JSON.stringify(payload) });
+    }
+    toast("Product saved");
+    closeForm();
+    load();
+  } catch (e) { toast(e.message, true); }
+});
+
+// --- Batches ---
+let currentBatchProduct = null;
+
+async function manageBatches(productId) {
+  currentBatchProduct = products.find((p) => p.id === productId);
+  document.getElementById("batchModalTitle").textContent = "Stock Batches — " + currentBatchProduct.name;
+  document.getElementById("batchProductId").value = productId;
+  await refreshBatchRows();
+  document.getElementById("batchBackdrop").classList.add("open");
+}
+
+function closeBatchModal() { document.getElementById("batchBackdrop").classList.remove("open"); }
+
+async function refreshBatchRows() {
+  const productId = document.getElementById("batchProductId").value;
+  const batches = await api(`/api/products/${productId}/batches`);
+  const tbody = document.getElementById("batchRows");
+  tbody.innerHTML = "";
+  if (!batches.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="text-muted">No batches yet.</td></tr>';
+  }
+  batches.forEach((b) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${escapeHtml(b.batchNo)}</td>
+      <td>${fmtExpiry(b.expiry)}</td>
+      <td class="text-right">${fmtMoney(b.mrp)}</td>
+      <td class="text-right">${fmtMoney(b.saleRate)}</td>
+      <td class="text-right">${b.qtyAvailable}</td>
+      <td><button class="btn-sm btn-danger" onclick="deleteBatch(${b.id})">Remove</button></td>`;
+    tbody.appendChild(tr);
+  });
+  const idx = products.findIndex((p) => p.id == productId);
+  if (idx >= 0) products[idx]._batches = batches;
+}
+
+document.getElementById("batchForm").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const productId = document.getElementById("batchProductId").value;
+  const payload = {
+    batchNo: document.getElementById("batchNo").value,
+    expiry: document.getElementById("batchExpiry").value,
+    mrp: parseFloat(document.getElementById("batchMrp").value || "0"),
+    saleRate: parseFloat(document.getElementById("batchSaleRate").value || "0"),
+    purchaseRate: 0,
+    qtyAvailable: parseInt(document.getElementById("batchQty").value || "0", 10),
+  };
+  try {
+    await api(`/api/products/${productId}/batches`, { method: "POST", body: JSON.stringify(payload) });
+    document.getElementById("batchForm").reset();
+    await refreshBatchRows();
+    renderRows();
+    toast("Batch added");
+  } catch (e) { toast(e.message, true); }
+});
+
+async function deleteBatch(batchId) {
+  if (!confirm("Remove this batch?")) return;
+  try {
+    await api("/api/products/batches/" + batchId, { method: "DELETE" });
+    await refreshBatchRows();
+    renderRows();
+  } catch (e) { toast(e.message, true); }
+}
+
+let searchTimer;
+document.getElementById("searchBox").addEventListener("input", (ev) => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => load(ev.target.value), 250);
+});
+
+load();
+</script>
+</body>
+</html>

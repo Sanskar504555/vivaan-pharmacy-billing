@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vivaan Pharmacy - Wholesale Billing Software</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="topbar" id="topbar"></div>
+
+<div class="container">
+  <div class="card">
+    <h1 id="firmHeading">VIVAAN PHARMACY</h1>
+    <p class="subtitle" id="firmSubtitle">Pharmaceutical Wholesale Billing Software</p>
+  </div>
+
+  <div class="grid grid-3">
+    <div class="card">
+      <h2>Masters</h2>
+      <p class="text-muted small">Manage sundry debtors/creditors and the product catalog with batch-wise stock.</p>
+      <div style="display:flex; gap:8px; margin-top:10px;">
+        <a class="btn" href="parties.html">Parties</a>
+        <a class="btn btn-secondary" href="products.html">Products</a>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Vouchers</h2>
+      <p class="text-muted small">Create a GST Tax Invoice matching Vivaan Pharmacy's standard bill format.</p>
+      <div style="display:flex; gap:8px; margin-top:10px;">
+        <a class="btn" href="sales-invoice.html">Sales Invoice</a>
+      </div>
+    </div>
+    <div class="card">
+      <h2>This Build</h2>
+      <p class="text-muted small">Phase 1 of the full wholesale billing suite &mdash; delivered incrementally.</p>
+      <div id="statsBox" class="small text-muted">Loading stats&hellip;</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Roadmap &mdash; delivered next, module by module</h2>
+    <ul class="roadmap-list">
+      <li><strong>Done:</strong> Firm profile, Party master, Product master + stock batches, Sales Invoice voucher with GST-accurate bill printing.</li>
+      <li><strong>Next:</strong> Purchase voucher (posts stock into batches automatically).</li>
+      <li>Credit Note / Debit Note vouchers linked to Sales/Purchase.</li>
+      <li>Payment & Receipt vouchers, running Account Ledger per party.</li>
+      <li>Reports: Sale &amp; Stock statement, Opening/Closing stock, Profit (billwise, monthwise, productwise, partywise).</li>
+      <li>GST reports: GSTR-2A, GSTR-2B, GSTR-3B summary views.</li>
+    </ul>
+  </div>
+</div>
+
+<script src="js/common.js"></script>
+<script>
+renderNav("index.html");
+
+async function loadDashboard() {
+  try {
+    const company = await api("/api/company");
+    if (company.firmName) {
+      document.getElementById("firmHeading").textContent = company.firmName;
+      document.getElementById("firmSubtitle").textContent =
+        `${company.addressLine1 || ""}, ${company.addressLine2 || ""} · GSTIN: ${company.gstin || ""}`;
+    }
+  } catch (e) { /* keep defaults */ }
+
+  try {
+    const [parties, products, invoices] = await Promise.all([
+      api("/api/parties"), api("/api/products"), api("/api/sales-invoices"),
+    ]);
+    const netTotal = invoices.reduce((s, i) => s + Number(i.netAmount || 0), 0);
+    document.getElementById("statsBox").innerHTML =
+      `${parties.length} parties &middot; ${products.length} products &middot; ${invoices.length} invoices<br>` +
+      `Total billed: ₹${fmtMoney(netTotal)}`;
+  } catch (e) {
+    document.getElementById("statsBox").textContent = "Stats unavailable.";
+  }
+}
+
+loadDashboard();
+</script>
+</body>
+</html>

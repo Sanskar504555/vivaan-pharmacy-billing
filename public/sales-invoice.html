@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sales Invoice - Vivaan Pharmacy Billing</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+  #itemsTable input, #itemsTable select { min-width: 90px; }
+  #itemsTable td { vertical-align: middle; }
+  .col-narrow { width: 70px; }
+  .totals-box { max-width: 380px; margin-left: auto; }
+  .totals-box .row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; }
+  .totals-box .row.net { font-weight: 700; font-size: 15px; border-top: 2px solid var(--text); margin-top: 6px; padding-top: 8px; }
+</style>
+</head>
+<body>
+<div class="topbar" id="topbar"></div>
+
+<div class="container">
+  <div class="card">
+    <h1>New Sales Invoice</h1>
+    <p class="subtitle">Creates a GST Tax Invoice for the selected party. The printed bill matches Vivaan Pharmacy's standard format.</p>
+
+    <div class="grid grid-4">
+      <div class="field">
+        <label>Party (Debtor) *</label>
+        <select id="partySelect"></select>
+      </div>
+      <div class="field">
+        <label>Invoice Date</label>
+        <input id="invoiceDate" type="date">
+      </div>
+      <div class="field">
+        <label>Due Date</label>
+        <input id="dueDate" type="date">
+      </div>
+      <div class="field">
+        <label>Salesman</label>
+        <input id="salesman" placeholder="Defaults to firm's default salesman">
+      </div>
+    </div>
+
+    <h2 style="margin-top:18px;">Items</h2>
+    <table id="itemsTable">
+      <thead>
+        <tr>
+          <th style="min-width:190px;">Product</th>
+          <th style="min-width:160px;">Batch</th>
+          <th class="col-narrow">Qty</th>
+          <th class="col-narrow">Sch</th>
+          <th class="col-narrow">MRP</th>
+          <th class="col-narrow">Rate</th>
+          <th class="col-narrow">Disc %</th>
+          <th class="col-narrow">Taxable</th>
+          <th class="col-narrow">GST%</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="itemRows"></tbody>
+    </table>
+    <button type="button" class="btn-secondary" style="margin-top:10px;" onclick="addRow()">+ Add Item</button>
+
+    <h2 style="margin-top:22px;">Adjustments & Remark</h2>
+    <div class="grid grid-4">
+      <div class="field">
+        <label>Scheme Discount (₹)</label>
+        <input id="schemeDiscount" type="number" step="0.01" value="0" min="0" oninput="recalcTotals()">
+      </div>
+      <div class="field">
+        <label>Item Discount (₹)</label>
+        <input id="itemDiscount" type="number" step="0.01" value="0" min="0" oninput="recalcTotals()">
+      </div>
+      <div class="field">
+        <label>Credit Note Adj. (₹)</label>
+        <input id="creditNoteAdj" type="number" step="0.01" value="0" min="0" oninput="recalcTotals()">
+      </div>
+      <div class="field">
+        <label>Debit Note Adj. (₹)</label>
+        <input id="debitNoteAdj" type="number" step="0.01" value="0" min="0" oninput="recalcTotals()">
+      </div>
+    </div>
+    <div class="grid grid-2">
+      <div class="field">
+        <label>Others (₹)</label>
+        <input id="othersAdj" type="number" step="0.01" value="0" min="0" oninput="recalcTotals()">
+      </div>
+      <div class="field">
+        <label>Remark (defaults to firm's bank details)</label>
+        <input id="remark" placeholder="Leave blank to use default bank remark">
+      </div>
+    </div>
+
+    <div class="totals-box card" style="background:#fafcfb;">
+      <div class="row"><span>Gross</span><span id="tGross">0.00</span></div>
+      <div class="row"><span>Add (CGST + SGST/IGST)</span><span id="tAdd">0.00</span></div>
+      <div class="row"><span>Less (Item-level Disc)</span><span id="tLess">0.00</span></div>
+      <div class="row net"><span>NET AMOUNT</span><span id="tNet">0.00</span></div>
+    </div>
+
+    <div style="margin-top:18px; display:flex; gap:10px;">
+      <button onclick="saveInvoice()">Save & Print Bill</button>
+      <button class="btn-secondary" onclick="resetForm()">Reset</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Recent Sales Invoices</h2>
+    <table>
+      <thead><tr><th>Invoice No.</th><th>Date</th><th>Party</th><th>Net Amt</th><th></th></tr></thead>
+      <tbody id="recentRows"></tbody>
+    </table>
+  </div>
+</div>
+
+<script src="js/common.js"></script>
+<script>
+renderNav("sales-invoice.html");
+
+let parties = [];
+let products = [];
+let batchCache = {}; // productId -> batches
+let companyStateCode = null;
+
+async function init() {
+  document.getElementById("invoiceDate").value = new Date().toISOString().slice(0, 10);
+  const [company, partyList, productList] = await Promise.all([
+    api("/api/company"), api("/api/parties"), api("/api/products"),
+  ]);
+  companyStateCode = company.stateCode;
+  parties = partyList;
+  products = productList;
+
+  const partySelect = document.getElementById("partySelect");
+  partySelect.innerHTML = parties.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("");
+  partySelect.addEventListener("change", recalcTotals);
+
+  addRow();
+  loadRecent();
+}
+
+// Matches the backend's rounding (round to paise after each step) so this preview
+// always agrees with the totals on the saved/printed bill.
+function round2(n) {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
+function isSelectedPartyInterState() {
+  const party = parties.find((p) => String(p.id) === String(document.getElementById("partySelect").value));
+  return !!(party && companyStateCode && party.stateCode !== companyStateCode);
+}
+
+function escapeHtml(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function productOptions() {
+  return '<option value="">Select product...</option>' +
+    products.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("");
+}
+
+function addRow() {
+  const tbody = document.getElementById("itemRows");
+  const tr = document.createElement("tr");
+  tr.innerHTML = `
+    <td><select class="prod-select" onchange="onProductChange(this)">${productOptions()}</select></td>
+    <td><select class="batch-select" onchange="onBatchChange(this)"><option value="">No batch</option></select></td>
+    <td><input class="qty" type="number" value="1" min="1" oninput="recalcRow(this)"></td>
+    <td><input class="sch" type="number" value="0" min="0"></td>
+    <td><input class="mrp" type="number" step="0.01" value="0" oninput="recalcRow(this)"></td>
+    <td><input class="rate" type="number" step="0.01" value="0" oninput="recalcRow(this)"></td>
+    <td><input class="disc" type="number" step="0.01" value="0" min="0" max="100" oninput="recalcRow(this)"></td>
+    <td class="taxable text-right">0.00</td>
+    <td class="gstpct text-right">0</td>
+    <td><button type="button" class="btn-sm btn-danger" onclick="removeRow(this)">&times;</button></td>
+  `;
+  tbody.appendChild(tr);
+}
+
+function removeRow(btn) {
+  btn.closest("tr").remove();
+  recalcTotals();
+}
+
+async function onProductChange(select) {
+  const tr = select.closest("tr");
+  const productId = select.value;
+  const product = products.find((p) => String(p.id) === String(productId));
+  const batchSelect = tr.querySelector(".batch-select");
+  batchSelect.innerHTML = '<option value="">No batch (manual)</option>';
+  if (!product) return;
+
+  tr.querySelector(".mrp").value = product.defaultMrp || 0;
+  tr.querySelector(".rate").value = product.defaultSaleRate || 0;
+  tr.dataset.gstPercent = product.gstPercent || 0;
+
+  if (!batchCache[productId]) {
+    batchCache[productId] = await api(`/api/products/${productId}/batches?availableOnly=true`);
+  }
+  batchCache[productId].forEach((b) => {
+    const opt = document.createElement("option");
+    opt.value = b.id;
+    opt.textContent = `${b.batchNo} (exp ${fmtExpiry(b.expiry)}, qty ${b.qtyAvailable})`;
+    opt.dataset.mrp = b.mrp;
+    opt.dataset.rate = b.saleRate;
+    batchSelect.appendChild(opt);
+  });
+
+  recalcRow(select);
+}
+
+function onBatchChange(select) {
+  const tr = select.closest("tr");
+  const opt = select.options[select.selectedIndex];
+  if (opt && opt.dataset.mrp !== undefined) {
+    tr.querySelector(".mrp").value = opt.dataset.mrp;
+    tr.querySelector(".rate").value = opt.dataset.rate;
+  }
+  recalcRow(select);
+}
+
+function recalcRow(el) {
+  const tr = el.closest("tr");
+  const qty = parseFloat(tr.querySelector(".qty").value || "0");
+  const rate = parseFloat(tr.querySelector(".rate").value || "0");
+  const disc = parseFloat(tr.querySelector(".disc").value || "0");
+  const gross = round2(qty * rate);
+  const taxable = round2(gross * (1 - disc / 100));
+  tr.querySelector(".taxable").textContent = taxable.toFixed(2);
+  tr.querySelector(".gstpct").textContent = tr.dataset.gstPercent || "0";
+  recalcTotals();
+}
+
+function recalcTotals() {
+  const interState = isSelectedPartyInterState();
+  let gross = 0, taxable = 0, tax = 0;
+  document.querySelectorAll("#itemRows tr").forEach((tr) => {
+    const qty = parseFloat(tr.querySelector(".qty").value || "0");
+    const rate = parseFloat(tr.querySelector(".rate").value || "0");
+    const disc = parseFloat(tr.querySelector(".disc").value || "0");
+    const gstPct = parseFloat(tr.dataset.gstPercent || "0");
+    const lineGross = round2(qty * rate);
+    const lineTaxable = round2(lineGross * (1 - disc / 100));
+    gross += lineGross;
+    taxable += lineTaxable;
+    // Rounded the same way as the backend: split CGST/SGST (each rounded
+    // separately, so they can differ by a paisa from a plain half-and-half split)
+    // or a single IGST slab for an inter-state party.
+    if (interState) {
+      tax += round2(lineTaxable * gstPct / 100);
+    } else {
+      const half = gstPct / 2;
+      const cgst = round2(lineTaxable * half / 100);
+      const sgst = round2(lineTaxable * half / 100);
+      tax += cgst + sgst;
+    }
+  });
+  const less = round2(gross - taxable); // sum of item-level discount amounts (C.Disc)
+  const schemeDiscount = parseFloat(document.getElementById("schemeDiscount").value || "0");
+  const itemDiscount = parseFloat(document.getElementById("itemDiscount").value || "0");
+  const creditNoteAdj = parseFloat(document.getElementById("creditNoteAdj").value || "0");
+  const debitNoteAdj = parseFloat(document.getElementById("debitNoteAdj").value || "0");
+  const othersAdj = parseFloat(document.getElementById("othersAdj").value || "0");
+
+  const net = gross + tax - less - schemeDiscount - itemDiscount - creditNoteAdj + debitNoteAdj + othersAdj;
+
+  document.getElementById("tGross").textContent = fmtMoney(gross);
+  document.getElementById("tAdd").textContent = fmtMoney(tax);
+  document.getElementById("tLess").textContent = fmtMoney(less);
+  document.getElementById("tNet").textContent = fmtMoney(net);
+}
+
+async function saveInvoice() {
+  const items = [];
+  document.querySelectorAll("#itemRows tr").forEach((tr) => {
+    const productId = tr.querySelector(".prod-select").value;
+    if (!productId) return;
+    const batchId = tr.querySelector(".batch-select").value;
+    items.push({
+      productId: parseInt(productId, 10),
+      stockBatchId: batchId ? parseInt(batchId, 10) : null,
+      qty: parseInt(tr.querySelector(".qty").value || "0", 10),
+      schemeQty: parseInt(tr.querySelector(".sch").value || "0", 10),
+      mrp: parseFloat(tr.querySelector(".mrp").value || "0"),
+      rate: parseFloat(tr.querySelector(".rate").value || "0"),
+      discPercent: parseFloat(tr.querySelector(".disc").value || "0"),
+    });
+  });
+
+  if (!document.getElementById("partySelect").value) { toast("Select a party", true); return; }
+  if (!items.length) { toast("Add at least one item", true); return; }
+
+  const payload = {
+    partyId: parseInt(document.getElementById("partySelect").value, 10),
+    invoiceDate: document.getElementById("invoiceDate").value || null,
+    dueDate: document.getElementById("dueDate").value || null,
+    salesman: document.getElementById("salesman").value,
+    remark: document.getElementById("remark").value,
+    schemeDiscount: parseFloat(document.getElementById("schemeDiscount").value || "0"),
+    itemDiscount: parseFloat(document.getElementById("itemDiscount").value || "0"),
+    creditNoteAdj: parseFloat(document.getElementById("creditNoteAdj").value || "0"),
+    debitNoteAdj: parseFloat(document.getElementById("debitNoteAdj").value || "0"),
+    othersAdj: parseFloat(document.getElementById("othersAdj").value || "0"),
+    items,
+  };
+
+  try {
+    const saved = await api("/api/sales-invoices", { method: "POST", body: JSON.stringify(payload) });
+    toast("Invoice " + saved.invoiceNo + " saved");
+    window.location.href = "invoice-print.html?id=" + saved.id;
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+function resetForm() {
+  document.getElementById("itemRows").innerHTML = "";
+  addRow();
+  ["schemeDiscount", "itemDiscount", "creditNoteAdj", "debitNoteAdj", "othersAdj"].forEach((id) => document.getElementById(id).value = 0);
+  document.getElementById("remark").value = "";
+  recalcTotals();
+}
+
+async function loadRecent() {
+  const invoices = await api("/api/sales-invoices");
+  const tbody = document.getElementById("recentRows");
+  tbody.innerHTML = "";
+  if (!invoices.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="text-muted">No invoices yet.</td></tr>';
+    return;
+  }
+  invoices.slice(0, 15).forEach((inv) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${escapeHtml(inv.invoiceNo)}</td>
+      <td>${fmtDate(inv.invoiceDate)}</td>
+      <td>${escapeHtml(inv.partyName)}</td>
+      <td class="text-right">${fmtMoney(inv.netAmount)}</td>
+      <td><a href="invoice-print.html?id=${inv.id}" target="_blank">View / Print</a></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+init();
+</script>
+</body>
+</html>

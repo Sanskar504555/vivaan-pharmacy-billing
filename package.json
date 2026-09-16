@@ -1,0 +1,21 @@
+{
+  "name": "vivaan-pharmacy-billing",
+  "version": "1.0.0",
+  "description": "Vivaan Pharmacy - Pharmaceutical Wholesale Billing Software (Node.js + Express + PostgreSQL edition, built for local VS Code development and deployment to Vercel)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "NODE_ENV=development node server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "pg": "^8.13.1",
+    "dotenv": "^16.4.5",
+    "nodemailer": "^10.0.10"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}

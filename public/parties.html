@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Parties - Vivaan Pharmacy Billing</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="topbar" id="topbar"></div>
+
+<div class="container">
+  <div class="card">
+    <div class="toolbar">
+      <div>
+        <h1>Sundry Debtors & Creditors</h1>
+        <p class="subtitle">Master list of customers and suppliers used across Sales, Purchase and Ledger vouchers.</p>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <input class="search" id="searchBox" placeholder="Search by name...">
+        <button onclick="openForm()">+ New Party</button>
+      </div>
+    </div>
+
+    <table id="partyTable">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>City / State</th>
+          <th>Mobile</th>
+          <th>GSTIN</th>
+          <th>DL Numbers</th>
+          <th>Opening Bal.</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="partyRows"></tbody>
+    </table>
+    <div class="empty-state" id="emptyState" style="display:none;">No parties yet. Click "+ New Party" to add your first debtor or creditor.</div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle" style="margin:0;">New Party</h2>
+      <button onclick="closeForm()">&times;</button>
+    </div>
+    <form id="partyForm">
+      <input type="hidden" id="partyId">
+      <div class="grid grid-2">
+        <div class="field">
+          <label>Party Name *</label>
+          <input id="name" required>
+        </div>
+        <div class="field">
+          <label>Type</label>
+          <select id="partyType">
+            <option value="DEBTOR">Debtor (Customer)</option>
+            <option value="CREDITOR">Creditor (Supplier)</option>
+            <option value="BOTH">Both</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid grid-2">
+        <div class="field">
+          <label>Address Line 1</label>
+          <input id="addressLine1">
+        </div>
+        <div class="field">
+          <label>Address Line 2</label>
+          <input id="addressLine2">
+        </div>
+      </div>
+      <div class="grid grid-3">
+        <div class="field">
+          <label>City</label>
+          <input id="city">
+        </div>
+        <div class="field">
+          <label>State</label>
+          <input id="state" value="MAHARASHTRA">
+        </div>
+        <div class="field">
+          <label>State Code</label>
+          <input id="stateCode" value="27">
+        </div>
+      </div>
+      <div class="grid grid-3">
+        <div class="field">
+          <label>Mobile</label>
+          <input id="mobile">
+        </div>
+        <div class="field">
+          <label>Phone</label>
+          <input id="phone">
+        </div>
+        <div class="field">
+          <label>Email</label>
+          <input id="email" type="email">
+        </div>
+      </div>
+      <div class="grid grid-2">
+        <div class="field">
+          <label>GSTIN</label>
+          <input id="gstin">
+        </div>
+        <div class="field">
+          <label>PAN</label>
+          <input id="pan">
+        </div>
+      </div>
+      <div class="field">
+        <label>Drug License Number(s)</label>
+        <input id="dlNumbers" placeholder="e.g. 20/SOLA/314171, 21/SOLA/314173">
+      </div>
+      <div class="grid grid-4">
+        <div class="field">
+          <label>Opening Balance</label>
+          <input id="openingBalance" type="number" step="0.01" value="0">
+        </div>
+        <div class="field">
+          <label>Balance Type</label>
+          <select id="openingBalanceIsDebit">
+            <option value="true">Debit (Receivable)</option>
+            <option value="false">Credit (Payable)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Credit Days</label>
+          <input id="creditDays" type="number" value="0">
+        </div>
+        <div class="field">
+          <label>Credit Limit</label>
+          <input id="creditLimit" type="number" step="0.01" value="0">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" onclick="closeForm()">Cancel</button>
+        <button type="submit">Save Party</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="js/common.js"></script>
+<script>
+renderNav("parties.html");
+
+let parties = [];
+
+async function load(q) {
+  parties = await api("/api/parties" + (q ? ("?q=" + encodeURIComponent(q)) : ""));
+  renderRows();
+}
+
+function renderRows() {
+  const tbody = document.getElementById("partyRows");
+  tbody.innerHTML = "";
+  document.getElementById("emptyState").style.display = parties.length ? "none" : "block";
+  parties.forEach((p) => {
+    const tr = document.createElement("tr");
+    const badgeClass = "badge-" + p.partyType.toLowerCase();
+    tr.innerHTML = `
+      <td><strong>${escapeHtml(p.name)}</strong></td>
+      <td><span class="badge ${badgeClass}">${p.partyType}</span></td>
+      <td>${escapeHtml(p.city || "")}${p.state ? ", " + escapeHtml(p.state) : ""}</td>
+      <td>${escapeHtml(p.mobile || "")}</td>
+      <td>${escapeHtml(p.gstin || "")}</td>
+      <td class="small">${escapeHtml(p.dlNumbers || "")}</td>
+      <td class="text-right nowrap">${fmtMoney(p.openingBalance)} ${p.openingBalanceIsDebit ? "Dr" : "Cr"}</td>
+      <td class="actions-cell">
+        <button class="btn-sm btn-secondary" onclick="editParty(${p.id})">Edit</button>
+        <button class="btn-sm btn-danger" onclick="removeParty(${p.id})">Delete</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function openForm() {
+  document.getElementById("modalTitle").textContent = "New Party";
+  document.getElementById("partyForm").reset();
+  document.getElementById("partyId").value = "";
+  document.getElementById("state").value = "MAHARASHTRA";
+  document.getElementById("stateCode").value = "27";
+  document.getElementById("modalBackdrop").classList.add("open");
+}
+
+function closeForm() {
+  document.getElementById("modalBackdrop").classList.remove("open");
+}
+
+function editParty(id) {
+  const p = parties.find((x) => x.id === id);
+  if (!p) return;
+  document.getElementById("modalTitle").textContent = "Edit Party";
+  document.getElementById("partyId").value = p.id;
+  document.getElementById("name").value = p.name || "";
+  document.getElementById("partyType").value = p.partyType || "DEBTOR";
+  document.getElementById("addressLine1").value = p.addressLine1 || "";
+  document.getElementById("addressLine2").value = p.addressLine2 || "";
+  document.getElementById("city").value = p.city || "";
+  document.getElementById("state").value = p.state || "";
+  document.getElementById("stateCode").value = p.stateCode || "";
+  document.getElementById("mobile").value = p.mobile || "";
+  document.getElementById("phone").value = p.phone || "";
+  document.getElementById("email").value = p.email || "";
+  document.getElementById("gstin").value = p.gstin || "";
+  document.getElementById("pan").value = p.pan || "";
+  document.getElementById("dlNumbers").value = p.dlNumbers || "";
+  document.getElementById("openingBalance").value = p.openingBalance || 0;
+  document.getElementById("openingBalanceIsDebit").value = String(!!p.openingBalanceIsDebit);
+  document.getElementById("creditDays").value = p.creditDays || 0;
+  document.getElementById("creditLimit").value = p.creditLimit || 0;
+  document.getElementById("modalBackdrop").classList.add("open");
+}
+
+async function removeParty(id) {
+  if (!confirm("Deactivate this party? Existing vouchers will keep their history.")) return;
+  try {
+    await api("/api/parties/" + id, { method: "DELETE" });
+    toast("Party deactivated");
+    load();
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+document.getElementById("partyForm").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const id = document.getElementById("partyId").value;
+  const payload = {
+    name: document.getElementById("name").value,
+    partyType: document.getElementById("partyType").value,
+    addressLine1: document.getElementById("addressLine1").value,
+    addressLine2: document.getElementById("addressLine2").value,
+    city: document.getElementById("city").value,
+    state: document.getElementById("state").value,
+    stateCode: document.getElementById("stateCode").value,
+    mobile: document.getElementById("mobile").value,
+    phone: document.getElementById("phone").value,
+    email: document.getElementById("email").value,
+    gstin: document.getElementById("gstin").value,
+    pan: document.getElementById("pan").value,
+    dlNumbers: document.getElementById("dlNumbers").value,
+    openingBalance: parseFloat(document.getElementById("openingBalance").value || "0"),
+    openingBalanceIsDebit: document.getElementById("openingBalanceIsDebit").value === "true",
+    creditDays: parseInt(document.getElementById("creditDays").value || "0", 10),
+    creditLimit: parseFloat(document.getElementById("creditLimit").value || "0"),
+    active: true,
+  };
+  try {
+    if (id) {
+      await api("/api/parties/" + id, { method: "PUT", body: JSON.stringify(payload) });
+    } else {
+      await api("/api/parties", { method: "POST", body: JSON.stringify(payload) });
+    }
+    toast("Party saved");
+    closeForm();
+    load();
+  } catch (e) {
+    toast(e.message, true);
+  }
+});
+
+let searchTimer;
+document.getElementById("searchBox").addEventListener("input", (ev) => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => load(ev.target.value), 250);
+});
+
+load();
+</script>
+</body>
+</html>
